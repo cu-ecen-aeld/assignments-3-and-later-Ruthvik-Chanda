@@ -50,6 +50,8 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	
+	syslog(LOG_DEBUG, "String %s has been written in the file %s", argv[2], argv[1]);
+	
 	close(fd);
 	
 	return 0;	
