@@ -5,6 +5,7 @@ Author      : Ruthvik R Chanda
 Description : Socket Server Implementation
 Reference   : https://beej.us/guide/bgnet/html/
               https://man7.org/linux/man-pages/man3/daemon.3.html
+              CU-ECEN-AESD Github Repositories
             
             
 *********************************************************************************/
@@ -43,14 +44,14 @@ typedef struct
 {
 	int clientfd;
 	pthread_mutex_t * mutex;
-	pthread_t thread_id;
+	pthread_t id;
 	bool thread_complete;
-}thread_parameter;
+}thread_struct;
 
 struct slist_data_s
 {
-	thread_parameter thread_params;
-	SLIST_ENTRY(slist_data_s) entries;
+	thread_struct thread_parameters;
+	SLIST_ENTRY(slist_data_s) entry;
 };
 
 typedef struct slist_data_s slist_data_t;
@@ -58,36 +59,13 @@ pthread_mutex_t mutex_lock = PTHREAD_MUTEX_INITIALIZER;
 slist_data_t *data_node = NULL;
 SLIST_HEAD(slisthead, slist_data_s) head;
 
-static void sign_handler()
-{
-	while (SLIST_FIRST(&head) != NULL)
-	{
-		SLIST_FOREACH(data_node, &head, entries)
-		{
-			close(data_node->thread_params.clientfd);				
-			pthread_join(data_node->thread_params.thread_id, NULL);
-			SLIST_REMOVE(&head, data_node,
-			slist_data_s, entries);
-			free(data_node);
-			break;
-		}
-	}
-	syslog(LOG_INFO, "Exiting and Clearing Buffers\n");
-	printf("Clearing Buffers..\n");
-	printf("Exiting..\n");
-	unlink(PATH);
-	close(socktfd);
-	close(clientfd);
-	exit(EXIT_SUCCESS);	
-}
-
 void *thread_function_handler(void *thread_param)
 {
 	bool p_state = false;
 	ssize_t data_rx = 0;
 	ssize_t data_wr = 0;
 	
-	thread_parameter *t_params = (thread_parameter*) thread_param;
+	thread_struct *t_params = (thread_struct*) thread_param;
 	
 	client_buff = (char*) malloc((sizeof(char) *BUFFER_SIZE));
 	if (client_buff == NULL)
@@ -275,6 +253,27 @@ static void timestamp(int signal)
 	close(fd);
 }
 
+static void sign_handler()
+{
+	while (SLIST_FIRST(&head) != NULL)
+	{
+		SLIST_FOREACH(data_node, &head, entry)
+		{
+			close(data_node->thread_parameters.clientfd);				
+			pthread_join(data_node->thread_parameters.id, NULL);
+			SLIST_REMOVE(&head, data_node,slist_data_s, entry);
+			free(data_node);
+			break;
+		}
+	}
+	syslog(LOG_INFO, "Exiting and Clearing Buffers\n");
+	printf("Clearing Buffers..\n");
+	printf("Exiting..\n");
+	unlink(PATH);
+	close(socktfd);
+	close(clientfd);
+	exit(EXIT_SUCCESS);	
+}
 
 int main(int argc, char *argv[])
 {
@@ -395,22 +394,22 @@ int main(int argc, char *argv[])
 		
 
 		data_node = (slist_data_t*) malloc(sizeof(slist_data_t));
-		SLIST_INSERT_HEAD(&head, data_node, entries);
-		data_node->thread_params.clientfd = clientfd;
-		data_node->thread_params.thread_complete = false;
-		data_node->thread_params.mutex = &mutex_lock;
+		SLIST_INSERT_HEAD(&head, data_node, entry);
+		data_node->thread_parameters.clientfd = clientfd;
+		data_node->thread_parameters.thread_complete = false;
+		data_node->thread_parameters.mutex = &mutex_lock;
 
-		pthread_create(&(data_node->thread_params.thread_id),	
+		pthread_create(&(data_node->thread_parameters.id),	
 			NULL,	
 			thread_function_handler,	
-			&data_node->thread_params);	
+			&data_node->thread_parameters);	
 
 		printf("Threads Created\n");
 
-		SLIST_FOREACH(data_node, &head, entries)
+		SLIST_FOREACH(data_node, &head, entry)
 		{
-			pthread_join(data_node->thread_params.thread_id, NULL);
-			SLIST_REMOVE(&head, data_node, slist_data_s, entries);
+			pthread_join(data_node->thread_parameters.id, NULL);
+			SLIST_REMOVE(&head, data_node, slist_data_s, entry);
 			free(data_node);
 			break;
 		}
