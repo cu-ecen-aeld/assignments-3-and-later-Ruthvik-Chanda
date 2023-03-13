@@ -43,6 +43,19 @@ Call trace:
 Code: d2800001 d2800000 d503233f d50323bf (b900003f) 
 ---[ end trace 23839af5989be4f9 ]---
 
+Objdump:
+0000000000000000 <faulty_write>:
+   0:   d503245f        bti     c
+   4:   d2800001        mov     x1, #0x0                        // #0
+   8:   d2800000        mov     x0, #0x0                        // #0
+   c:   d503233f        paciasp
+  10:   d50323bf        autiasp
+  14:   b900003f        str     wzr, [x1]
+  18:   d65f03c0        ret
+  1c:   d503201f        nop
+  
+The fault occurred at address 0x14, which indicates that it occurred at the instruction str wzr,[x1].
+
 Analysis:
 1. A 32-bit register called the ESR value in an ARM processor holds details about the reason why an exception occurred.
 2. Dereferencing the NULL pointer fails due to an inability to handle a kernel NULL pointer dereference at virtual address 0000000000000000.
@@ -52,4 +65,6 @@ Analysis:
 6. The call trail indicates that the problem appeared while faulty write was running.
 It was discovered during the disassembly of the faulty.ko file that the value 0 was being written to the incorrect memory address 0x10.
 There is therefore a chance of overwriting random memory and creating issues. As a result, the error might be fixed by restarting the qemu.
+
+
 
