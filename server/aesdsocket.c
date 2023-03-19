@@ -30,8 +30,14 @@ Reference   : https://beej.us/guide/bgnet/html/
 #include <sys/time.h>
 
 #define BUFFER_SIZE (1024)
-#define PATH "/var/tmp/aesdsocketdata"
 #define PORT "9000"
+
+#define USE_AESD_CHAR_DEVICE	(1)
+#if (USE_AESD_CHAR_DEVICE == 1)
+	#define FILE_PATH	"/dev/aesdchar"
+#else
+    	#define FILE_PATH	"/var/tmp/aesdsocketdata"
+#endif
 
 int len = 0;
 char *client_buff;
@@ -121,7 +127,7 @@ void *thread_function_handler(void *thread_param)
 		exit(EXIT_FAILURE);
 	}
 	
-	file_fd = open(PATH, O_APPEND | O_WRONLY);
+	file_fd = open(FILE_PATH, O_APPEND | O_WRONLY);
 	if (file_fd == -1)
 	{
 		syslog(LOG_ERR,"Error !! Failed to open file\n");
@@ -146,7 +152,7 @@ void *thread_function_handler(void *thread_param)
 
 	close(file_fd);
 	
-	file_fd = open(PATH, O_RDONLY);
+	file_fd = open(FILE_PATH, O_RDONLY);
 	if (file_fd == -1)
 	{
 		syslog(LOG_ERR,"Error !! Open Failed to read\n");
@@ -188,6 +194,7 @@ void *thread_function_handler(void *thread_param)
 	return t_params;
 }
 
+#if (USE_AESD_CHAR_DEVICE==0)
 static void timestamp(int signal)
 {
 	int fd;
@@ -215,7 +222,7 @@ static void timestamp(int signal)
 		exit(EXIT_FAILURE);
 	}
 
-	fd = open(PATH, O_APPEND | O_WRONLY);
+	fd = open(FILE_PATH, O_APPEND | O_WRONLY);
 	if (fd == -1)
 	{
 		syslog(LOG_ERR, "Error !! File dint open\n");
@@ -252,6 +259,7 @@ static void timestamp(int signal)
 
 	close(fd);
 }
+#endif
 
 static void sign_handler()
 {
@@ -269,7 +277,7 @@ static void sign_handler()
 	syslog(LOG_INFO, "Exiting and Clearing Buffers\n");
 	printf("Clearing Buffers..\n");
 	printf("Exiting..\n");
-	unlink(PATH);
+	unlink(FILE_PATH);
 	close(socktfd);
 	close(clientfd);
 	exit(EXIT_SUCCESS);	
@@ -309,7 +317,6 @@ int main(int argc, char *argv[])
 	SLIST_INIT(&head);
 	struct addrinfo hints;
 	struct addrinfo *param;
-	struct itimerval t_interval;
 	
 	memset(buff_rx, 0, BUFFER_SIZE);
 	memset(&hints, 0, sizeof(hints));
@@ -353,13 +360,15 @@ int main(int argc, char *argv[])
 
 	freeaddrinfo(param);
 	
-	file_fd = creat(PATH, 0666);
+	file_fd = creat(FILE_PATH, 0666);
 	if (file_fd == -1)
 	{
 		syslog(LOG_ERR, "Error !! File creation failed : %d\n", file_fd);
 		exit(EXIT_FAILURE);
 	}
 	
+#if (USE_AESD_CHAR_DEVICE==0)	
+	struct itimerval t_interval;
 	t_interval.it_interval.tv_sec  = 10;	// 10 secs interval
 	t_interval.it_interval.tv_usec = 0;
 	t_interval.it_value.tv_sec     = 10;	//10 secs expiry
@@ -372,7 +381,7 @@ int main(int argc, char *argv[])
 		printf("setitimer() failed\n");
 		exit(EXIT_FAILURE);
 	}
-	
+#endif
 	while(1)
 	{
 
