@@ -34,10 +34,11 @@ Reference   : https://beej.us/guide/bgnet/html/
 #define PORT "9000"
 
 #define USE_AESD_CHAR_DEVICE	(1)
+
 #if (USE_AESD_CHAR_DEVICE == 1)
 	#define FILE_PATH	"/dev/aesdchar"
-#else
-    	#define FILE_PATH	"/var/tmp/aesdtdata"
+#else if (USE_AESD_CHAR_DEVICE == 0)
+    	#define FILE_PATH	"/var/tmp/aesdsocketdata"
 #endif
 
 int len = 0;
