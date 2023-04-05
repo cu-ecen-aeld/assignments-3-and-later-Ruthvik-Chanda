@@ -6,7 +6,7 @@ Description : Socket Server Implementation
 Reference   : https://beej.us/guide/bgnet/html/
               https://man7.org/linux/man-pages/man3/daemon.3.html
               CU-ECEN-AESD Github Repositories
-            
+              Coursera PPT Slides
             
 *********************************************************************************/
 
@@ -28,6 +28,7 @@ Reference   : https://beej.us/guide/bgnet/html/
 #include <pthread.h>
 #include <sys/queue.h>
 #include <sys/time.h>
+#include "aesd_ioctl.h"
 
 #define BUFFER_SIZE (1024)
 #define PORT "9000"
@@ -36,7 +37,7 @@ Reference   : https://beej.us/guide/bgnet/html/
 #if (USE_AESD_CHAR_DEVICE == 1)
 	#define FILE_PATH	"/dev/aesdchar"
 #else
-    	#define FILE_PATH	"/var/tmp/aesdsocketdata"
+    	#define FILE_PATH	"/var/tmp/aesdtdata"
 #endif
 
 int len = 0;
@@ -127,13 +128,25 @@ void *thread_function_handler(void *thread_param)
 		exit(EXIT_FAILURE);
 	}
 	
-	file_fd = open(FILE_PATH, O_APPEND | O_WRONLY);
+	file_fd = open(FILE_PATH, O_WRONLY | O_RDONLY);
 	if (file_fd == -1)
 	{
 		syslog(LOG_ERR,"Error !! Failed to open file\n");
 		exit(EXIT_FAILURE);
 	}
-		
+	
+	const char *ioctl_string =  "AESDCHAR_IOCSEEKTO:";
+	if (!strncmp(client_buff,ioctl_string,strlen(ioctl_string)))
+	{
+		struct aesd_seekto seekto;
+		sscanf(client_buff, "AESDCHAR_IOCSEEKTO:%d,%d", &seekto.write_cmd, &seekto.write_cmd_offset);
+		if(ioctl(file_fd, AESDCHAR_IOCSEEKTO, &seekto))
+               {
+               	printf("ERROR !! IOCTL Not Executed);
+               }
+	}	
+	else
+	{
 	data_wr = write(file_fd, client_buff, strlen(client_buff));
 	if (data_wr == -1)
 	{
@@ -149,7 +162,7 @@ void *thread_function_handler(void *thread_param)
 	{
 		syslog(LOG_INFO,"File write success!\n");
 	}
-
+	}
 	close(file_fd);
 	
 	file_fd = open(FILE_PATH, O_RDONLY);
@@ -277,7 +290,9 @@ static void sign_handler()
 	syslog(LOG_INFO, "Exiting and Clearing Buffers\n");
 	printf("Clearing Buffers..\n");
 	printf("Exiting..\n");
+	#if (USE_AESD_CHAR_DEVICE==0)
 	unlink(FILE_PATH);
+	#endif
 	close(socktfd);
 	close(clientfd);
 	exit(EXIT_SUCCESS);	
@@ -310,7 +325,9 @@ int main(int argc, char *argv[])
 	
 	signal(SIGINT, sign_handler);
 	signal(SIGTERM, sign_handler);
+	#if (USE_AESD_CHAR_DEVICE==0)
 	signal(SIGALRM, timestamp);
+	#endif
 	
 	pthread_mutex_init(&mutex_lock, NULL);
 	
@@ -359,7 +376,8 @@ int main(int argc, char *argv[])
 	}
 
 	freeaddrinfo(param);
-	
+
+#if (USE_AESD_CHAR_DEVICE==0)
 	file_fd = creat(FILE_PATH, 0666);
 	if (file_fd == -1)
 	{
@@ -367,7 +385,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 	
-#if (USE_AESD_CHAR_DEVICE==0)	
+	
 	struct itimerval t_interval;
 	t_interval.it_interval.tv_sec  = 10;	// 10 secs interval
 	t_interval.it_interval.tv_usec = 0;
