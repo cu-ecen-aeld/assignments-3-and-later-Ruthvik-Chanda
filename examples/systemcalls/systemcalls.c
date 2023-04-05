@@ -1,4 +1,12 @@
 #include "systemcalls.h"
+#include <unistd.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -17,6 +25,13 @@ bool do_system(const char *cmd)
  *   or false() if it returned a failure
 */
 
+    int status = system(cmd);
+    if (status == -1)
+    {
+    	printf(" Error ! System() call Failed");
+    	return false;
+    }
+    else
     return true;
 }
 
@@ -58,6 +73,56 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    
+    pid_t pid_value;
+    pid_value = fork();
+    
+    if(pid_value == 0)
+    {
+    	int status = 0;
+    	status = execv(command[0], command);
+    	if (status == -1)
+    	{
+    		printf("Error ! execv() command failed");
+    		exit(-1);
+    	}
+    }
+    
+    else if(pid_value == -1)
+    {
+    	printf("Error ! fork() command failed");
+    	return false;	
+    }
+    
+    else
+    {
+    	int status = 0;
+    	pid_t wait_pid =waitpid(pid_value,&status,0);
+    	
+    	if(wait_pid == -1)
+    	{
+    		printf("Error ! waitpid() call failed");
+    		return false;
+    	}
+    	else
+    	{
+    		if(WIFEXITED(status))
+    		{
+    			if(WEXITSTATUS(status) != 0)
+    			{
+    				return false;
+    			}
+    			else
+    			{
+    				return true;
+    			}
+    		}
+    		else
+    		{
+    			return false;
+    		}
+    	}
+    }
 
     va_end(args);
 
@@ -93,7 +158,64 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *
 */
 
+    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+    
+    if(-1 == fd) 
+    {
+        printf("Error !, open() call failed");
+        exit(-1);
+    }
+    
+    int status = true;
+    pid_t pid_value = fork();
+    
+    if (pid_value == -1)
+    {
+    	status = false;
+    }
+    
+    else if (pid_value >0)
+    {
+    	int state;
+    	pid_t wait_status = wait(&state);
+    	if (wait_status == -1)
+    	{
+    		printf("Error !, Wait() call failed");
+    		status = false;
+    	}
+    	else
+    	{
+    		if(WIFEXITED(state))
+    		{
+                	if(WEXITSTATUS(state) != 0) 
+                	{
+                   		status = false; 
+               	}
+           	 } 
+           	 else 
+           	 {
+                 	status = false; 
+    		 }
+    	}
+     }
+     
+     else if (pid_value == 0)
+     {
+     	if (dup2(fd, 1) < 0)
+     	{
+     		printf("Error !, dup2() call failed");
+     		exit(1);
+     	}
+     	int exec_status = execv(command[0], command);
+        if(exec_status == -1)
+        {
+            printf("Error !, exec() call failed");
+            exit(-1);
+        } 
+     }
+  
     va_end(args);
+    close(fd);
 
-    return true;
+    return status;
 }
